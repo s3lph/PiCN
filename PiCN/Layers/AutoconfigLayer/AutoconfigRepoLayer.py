@@ -1,5 +1,7 @@
 import multiprocessing
+import threading
 import socket
+import os
 
 from typing import List
 
@@ -18,7 +20,7 @@ class AutoconfigRepoLayer(LayerProcess):
 
     def __init__(self, name: str, linklayer: UDP4LinkLayer, repo: BaseRepository,
                  addr: str, port: int = 9000, bcaddr: str = '255.255.255.255', bcport: int = 9000,
-                 log_level: int = 255):
+                 solicitation_timeout: float = None, solicitation_max_retry: int = 3, log_level: int = 255):
         super().__init__('AutoconfigRepoLayer', log_level)
         self._linklayer = linklayer
         self._repository = repo
@@ -27,6 +29,9 @@ class AutoconfigRepoLayer(LayerProcess):
         self._broadcast_addr: str = bcaddr
         self._broadcast_port: int = bcport
         self._service_name: str = name
+        self._solicitation_timeout: float = solicitation_timeout
+        self._solicitation_max_retry: int = solicitation_max_retry
+        self._solicitation_timer: threading.Timer = None
 
         # Enable broadcasting on the link layer's socket.
         if self._linklayer is not None:
@@ -34,10 +39,7 @@ class AutoconfigRepoLayer(LayerProcess):
 
     def start_process(self):
         super().start_process()
-        self.logger.info('Soliciting forwarders')
-        forwarders_interest = Interest(_AUTOCONFIG_FORWARDERS_PREFIX)
-        autoconf_fid = self._linklayer.get_or_create_fid((self._broadcast_addr, self._broadcast_port), static=True)
-        self.queue_to_lower.put([autoconf_fid, forwarders_interest])
+        self._start_forwarder_solicitation(self._solicitation_max_retry)
 
     def data_from_lower(self, to_lower: multiprocessing.Queue, to_higher: multiprocessing.Queue, data):
         self.logger.info(f'Got data from lower: {data}')
@@ -65,6 +67,9 @@ class AutoconfigRepoLayer(LayerProcess):
         if not isinstance(packet, Content):
             return
         self.logger.info('Received forwarder info')
+        if self._solicitation_timer is not None:
+            self._solicitation_timer.cancel()
+            self._solicitation_timer = None
         lines: List[str] = packet.content.split('\n')
         host, port = lines[0].split(':')
         self.logger.info(f'forwarder: {host}:{port}')
@@ -94,3 +99,19 @@ class AutoconfigRepoLayer(LayerProcess):
             self.logger.info(f'Service registration accepted: {packet.name.components[3:]}')
             self._repository.set_prefix(Name(packet.name.components[3:]))
             return
+
+    def _start_forwarder_solicitation(self, retry: int):
+        self.logger.info('Soliciting forwarders')
+        forwarders_interest = Interest(_AUTOCONFIG_FORWARDERS_PREFIX)
+        autoconf_fid = self._linklayer.get_or_create_fid((self._broadcast_addr, self._broadcast_port), static=True)
+        self.queue_to_lower.put([autoconf_fid, forwarders_interest])
+        # Schedule re-solicitation, if enabled
+        if self._solicitation_timeout is not None and retry > 1:
+            self._solicitation_timer = threading.Timer(self._solicitation_timeout, self._start_forwarder_solicitation,
+                                                       [retry - 1])
+            self._solicitation_timer.start()
+        elif retry <= 1:
+            self.logger.fatal('No forwarder solicitation received in time')
+            # FIXME: This is a potentially bad idea, as no cleanup happens, such as open files or network sockets
+            # Oh, and it will kill unit tests, too
+            os._exit(1)
