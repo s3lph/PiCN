@@ -93,8 +93,9 @@ class AutoconfigClientLayer(LayerProcess):
         for line in lines[1:]:
             if len(line.strip()) == 0:
                 continue
-            t, n = line.split(':')
+            t, n = line.split(':', 1)
             if t == 'r':
+                _, n = n.split(':', 1)
                 name: Name = Name(n)
                 for interest in self._held_interests:
                     if name.is_prefix_of(interest.name):

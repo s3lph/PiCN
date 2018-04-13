@@ -8,6 +8,13 @@ The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT", "SHOULD",
 "SHOULD NOT", "RECOMMEND", "MAY" and "OPTIONAL" in this document are to be
 interpreted as described in [IETF RFC 2119][rfc2119].
 
+## Revisions
+
+| Date       | Changes  |
+|:-----------|:---------|
+| 2018-04-12 | First version of this document. |
+| 2018-04-13 | Added hop distance information to routes. |
+
 ## Features
 
 This document defines a way for a CLIENT to request information about ICN
@@ -134,7 +141,8 @@ SERVICE LISTS is defined by the ABNF rule SERVICELIST.
     NAME         = [ "/" NAMECOMP ]
     GLOBALPREFIX = "pg:" NAME
     LOCALPREFIX  = "pl:" NAME
-    ROUTE        = "r:" NAME
+    HOPS         = DIGIT [ DIGIT ]
+    ROUTE        = "r:" HOPS ":" NAME
     FORWARDER    = FACE NEWLINE [ GLOBALPREFIX / LOCALPREFIX / ROUTE NEWLINE ]
     SERVICELIST  = [ NAME NEWLINE ]
     SERVICEACK   = DIGIT [ DIGIT ] NEWLINE
@@ -146,8 +154,8 @@ SERVICE LISTS is defined by the ABNF rule SERVICELIST.
 2.  Server listening on this address sends a forwarder advertisement, e.g.
     ```
     udp4://192.168.0.42:6363
-    r:/ndn
-    r:/local
+    r:10:/ndn
+    r:1:/local
     pl:/local
     pg:/ndn/ch/unibas/cs/cn
     
@@ -217,7 +225,8 @@ Network Byte Order.  Thus, this element has a constant length of 2 bytes.
 #### Route (TLV-TYPE 133)
 
 This element describes a prefix routed by the advertised forwarder.  It MUST contain
-exactly ONE Name element, as defined in the [NDN TLV][ndntlv] format specification.
+exactly ONE Name element, as defined in the [NDN TLV][ndntlv] format specification,
+and exactly ONE Distance element.
 
 #### LocalPrefix (TLV-TYPE 134)
 
@@ -245,6 +254,11 @@ specification.
 
 This element describes the timeout (in seconds) for a service registration.  The
 value is represented as a variable-length integer in Network Byte Order.
+
+#### RegistrationTimeout (TLV-TYPE 138)
+
+This element describes the distance (in hops) for a route.  The value is represented
+as a variable-length integer in Network Byte Order.
 
 [ndn-pack-spec]: https://named-data.net/doc/NDN-packet-spec/current/
 [rfc2119]: https://tools.ietf.org/rfc/rfc2119

@@ -76,7 +76,7 @@ class AutoconfigServerLayer(LayerProcess):
         content: str = f'udp4://{self._announce_addr}:{port}\n'
         for entry in self._fib.container:
             entry: ForwardingInformationBaseEntry = entry
-            content += f'r:{entry.name.to_string()}\n'
+            content += f'r:1:{entry.name.to_string()}\n'
         for prefix, local in self._service_registration_prefixes:
             if local:
                 content += f'pl:{prefix.to_string()}\n'
