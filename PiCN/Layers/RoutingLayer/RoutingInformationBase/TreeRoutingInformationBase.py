@@ -61,7 +61,7 @@ class _RIBTreeNode(object):
         # If there are no children, simply add an entry for the own name
         if len(self._children) == 0:
             if len(self._distance_vector) > 0:
-                result.append((nclist, self.__get_best_fid()))
+                result.append((nclist, self._get_best_fid()))
         else:
             # Call collapse() recursively on each child
             ch_res: List[Tuple[List[bytes], int]] = []
@@ -72,7 +72,7 @@ class _RIBTreeNode(object):
                 [c[0].insert(0, self._nc) for c in ch_res]
             # If there is an explicit distance vector entry for the node itself, add it to the children's results
             if len(self._distance_vector) > 0:
-                ch_res.append((nclist, self.__get_best_fid()))
+                ch_res.append((nclist, self._get_best_fid()))
             # Collect the number of distinct face IDs
             subfids = set()
             for c in ch_res:
@@ -95,9 +95,12 @@ class _RIBTreeNode(object):
         for child in self._children.values():
             child.ageing(now)
         # Remove all outdated distance vector entries
+        todelete: List[int] = list()
         for (fid, (_, timeout)) in self._distance_vector.items():
             if timeout is not None and timeout <= now:
-                del self._distance_vector[fid]
+                todelete.append(fid)
+        for fid in todelete:
+            del self._distance_vector[fid]
         # Delete the node from the tree if it has no children and no distance vector entries left
         if self._parent is not None and len(self._distance_vector) == 0 and len(self._children) == 0:
             del self._parent._children[self._nc]
@@ -114,7 +117,7 @@ class _RIBTreeNode(object):
         self._children[child._nc] = child
         child._parent = self
 
-    def __get_best_fid(self) -> int:
+    def _get_best_fid(self) -> int:
         """
         Get the ID of the face with the minimal path to this name.
         :return: Face ID for the minimal distance path
