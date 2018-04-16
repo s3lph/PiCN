@@ -2,6 +2,7 @@
 from typing import List, Tuple, Dict
 
 import multiprocessing
+from multiprocessing.managers import BaseManager
 from datetime import datetime
 
 from PiCN.Layers.ICNLayer.ForwardingInformationBase import BaseForwardingInformationBase
@@ -50,21 +51,21 @@ class _RIBTreeNode(object):
         # Create a distance vector entry for the deepest node
         node._distance_vector[fid] = distance, timeout
 
-    def collapse(self) -> List[Tuple[List[bytes], int]]:
+    def collapse(self) -> List[Tuple[List[bytes], int, int]]:
         """
         Collapse the RIB information to a longest prefix representation for insertion into a FIB
         :return: Longest prefix representation
         """
-        result: List[Tuple[List[bytes], int]] = []
+        result: List[Tuple[List[bytes], int, int]] = []
         # Special treatment of the root node
         nclist = [self._nc] if self._nc is not None else []
         # If there are no children, simply add an entry for the own name
         if len(self._children) == 0:
             if len(self._distance_vector) > 0:
-                result.append((nclist, self._get_best_fid()))
+                result.append((nclist,) + self._get_best_fid())
         else:
             # Call collapse() recursively on each child
-            ch_res: List[Tuple[List[bytes], int]] = []
+            ch_res: List[Tuple[List[bytes], int, int]] = []
             for child in self._children.values():
                 ch_res += child.collapse()
             # Add own name component to the name of each entry in the children's results
@@ -72,14 +73,14 @@ class _RIBTreeNode(object):
                 [c[0].insert(0, self._nc) for c in ch_res]
             # If there is an explicit distance vector entry for the node itself, add it to the children's results
             if len(self._distance_vector) > 0:
-                ch_res.append((nclist, self._get_best_fid()))
+                ch_res.append((nclist,) + self._get_best_fid())
             # Collect the number of distinct face IDs
             subfids = set()
             for c in ch_res:
                 subfids.add(c[1])
             # If there is only one face in the results, reduce the entries to a single prefix entry with the own name
-            if len(subfids) == 1:
-                result.append((nclist, subfids.pop()))
+            if len(subfids) == 1 and len(ch_res) > 1:
+                result.append((nclist,) + subfids.pop())
             else:
                 # If there is more than one face in the results, don't collapse the entries to a prefix entry
                 for c in ch_res:
@@ -117,18 +118,18 @@ class _RIBTreeNode(object):
         self._children[child._nc] = child
         child._parent = self
 
-    def _get_best_fid(self) -> int:
+    def _get_best_fid(self) -> Tuple[int, int]:
         """
         Get the ID of the face with the minimal path to this name.
         :return: Face ID for the minimal distance path
         """
-        fid, _ = min(self._distance_vector.items(), key=lambda x: x[1][0])
-        return fid
+        (fid, (dist, _)) = min(self._distance_vector.items(), key=lambda x: x[1][0])
+        return fid, dist
 
     def __str__(self) -> str:
-        return self.__str()
+        return self.to_string()
 
-    def __str(self, depth=0) -> str:
+    def to_string(self, depth=0) -> str:
         """
         Create a pretty-print representation of the node and its children.
         """
@@ -136,7 +137,7 @@ class _RIBTreeNode(object):
         myname = self._nc.decode('utf-8') if self._nc is not None else '/'
         s += f'{"│ " * (depth-1)}├╴{myname}: {self._distance_vector}\n'
         for child in self._children.values():
-            s += f'│ {child.__str(depth + 1)}'
+            s += f'│ {child.to_string(depth + 1)}'
         return s
 
 
@@ -145,15 +146,20 @@ class TreeRoutingInformationBase(BaseRoutingInformationBase):
     Implementation of a Routing Information Base that uses a tree structure for internal storage.
     """
 
-    def __init__(self, manager: multiprocessing.Manager):
-        self._tree = manager.Value(_RIBTreeNode, _RIBTreeNode())
-        self._tree.value: _RIBTreeNode
+    def __init__(self):
+        BaseManager.register('_RIBTreeNode', _RIBTreeNode)
+        manager = BaseManager()
+        manager.start()
+        self._tree: _RIBTreeNode = manager._RIBTreeNode()
+
+    def __str__(self):
+        return self._tree.to_string()
 
     def ageing(self):
         """
         Remove outdated entries from the RIB.
         """
-        self._tree.value.ageing(datetime.utcnow())
+        self._tree.ageing(datetime.utcnow())
 
     def insert(self, name: Name, fid: int, distance: int, timeout: datetime = None):
         """
@@ -164,7 +170,7 @@ class TreeRoutingInformationBase(BaseRoutingInformationBase):
         :param timeout: The timestamp after which to consider the route
         :return:
         """
-        self._tree.value.insert(name, fid, distance, timeout)
+        self._tree.insert(name, fid, distance, timeout)
 
     def build_fib(self, fib: BaseForwardingInformationBase):
         """
@@ -173,8 +179,8 @@ class TreeRoutingInformationBase(BaseRoutingInformationBase):
         :param fib: The FIB to fill with routes.
         """
         # Clear all previous FIB entries
-        fib.container.clear()
+        fib.clear()
         # Add the longest prefix representation entries to the FIB
-        collapsed: List[Tuple[List[bytes], int]] = self._tree.value.collapse()
-        for name, fid in collapsed:
-            fib.add_fib_entry(Name(name), fid, static=True)
+        collapsed: List[Tuple[List[bytes], int, int]] = self._tree.collapse()
+        for name, fid, dist in collapsed:
+            fib.add_fib_entry(Name(name), fid, static=True, distance=dist)

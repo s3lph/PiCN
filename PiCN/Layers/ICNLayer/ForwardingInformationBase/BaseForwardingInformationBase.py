@@ -10,13 +10,19 @@ from PiCN.Packets import Interest, Name
 class ForwardingInformationBaseEntry(object):
     """An entry in the Forwarding Information Base"""
 
-    def __init__(self, name: Name, faceid: int, static: bool=False):
-       self._name: Name = name
-       self._faceid: int = faceid
-       self._static: bool = static
+    def __init__(self, name: Name, faceid: int, static: bool = False, distance: int = None):
+        self._name: Name = name
+        self._faceid: int = faceid
+        self._static: bool = static
+        self._distance: int = distance
 
     def __eq__(self, other):
         return self._name == other._name and self._faceid == other._faceid
+
+    def __str__(self):
+        static = ' static' if self._static else ''
+        dist = f' d={self._distance}' if self._distance is not None else ''
+        return f'<FIB Entry: {self._name.to_string()} via {self._faceid}{static}{dist}>'
 
     @property
     def name(self):
@@ -42,6 +48,15 @@ class ForwardingInformationBaseEntry(object):
     def static(self, static):
         self._static = static
 
+    @property
+    def distance(self):
+        return self._distance
+
+    @distance.setter
+    def distance(self, distance: int):
+        self._distance = distance
+
+
 class BaseForwardingInformationBase(object):
     """Abstract BaseForwardingInformationBase for usage in BasicICNLayer"""
 
@@ -49,7 +64,7 @@ class BaseForwardingInformationBase(object):
         self._container: List[ForwardingInformationBaseEntry] = manager.list()
 
     @abc.abstractclassmethod
-    def add_fib_entry(self, name: Name, fid: int, static: bool):
+    def add_fib_entry(self, name: Name, fid: int, static: bool, distance: int = None):
         """Add an Interest to the PIT"""
 
     @abc.abstractclassmethod
@@ -60,6 +75,9 @@ class BaseForwardingInformationBase(object):
     def find_fib_entry(self, name: Name, already_used: List[ForwardingInformationBaseEntry]) \
             ->ForwardingInformationBaseEntry:
         """Find an entry in the PIT"""
+
+    def clear(self):
+        self._container[:] = []
 
     @property
     def container(self):

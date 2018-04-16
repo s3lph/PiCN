@@ -8,6 +8,8 @@ from PiCN.Layers.ICNLayer.ForwardingInformationBase import ForwardingInformation
 from PiCN.Layers.ICNLayer.PendingInterestTable import PendingInterstTableMemoryExact
 from PiCN.Layers.PacketEncodingLayer import BasicPacketEncodingLayer
 from PiCN.Layers.AutoconfigLayer import AutoconfigServerLayer
+from PiCN.Layers.RoutingLayer import BasicRoutingLayer
+from PiCN.Layers.RoutingLayer.RoutingInformationBase import TreeRoutingInformationBase
 
 from PiCN.Layers.ICNLayer.ContentStore import ContentStoreMemoryExact
 from PiCN.Layers.LinkLayer import UDP4LinkLayer
@@ -21,7 +23,8 @@ from PiCN.Packets import Name
 class ICNForwarder(object):
     """A ICN Forwarder using PiCN"""
 
-    def __init__(self, port=9000, log_level=255, encoder: BasicEncoder = None, autoconfig: bool = False):
+    def __init__(self, port=9000, log_level=255, encoder: BasicEncoder = None, autoconfig: bool = False,
+                 routing: bool = False):
         # debug level
         logger = Logger("ICNForwarder", log_level)
 
@@ -33,6 +36,7 @@ class ICNForwarder(object):
             self.encoder = encoder
 
         self._autoconfig = autoconfig
+        self._routing = routing
 
         # initialize layers
         self.linklayer = UDP4LinkLayer(port, log_level=log_level)
@@ -52,14 +56,26 @@ class ICNForwarder(object):
         ])
 
         if self._autoconfig:
-            self.autoconfiglayer: AutoconfigServerLayer = AutoconfigServerLayer(linklayer=self.linklayer,
-                                                                                fib=self.fib,
-                                                                                address='127.0.0.1',
-                                                                                bcaddr='127.255.255.255',
-                                                                                registration_prefixes=
-                                                                                [(Name('/testnetwork/repos'), True)],
-                                                                                log_level=log_level)
+            self.autoconfiglayer: AutoconfigServerLayer = \
+                AutoconfigServerLayer(linklayer=self.linklayer,
+                                      fib=self.fib,
+                                      address='127.0.0.1',
+                                      bcaddr='127.255.255.255',
+                                      registration_prefixes=
+                                      [(Name('/testnetwork/repos'), True)] if port == 9002 else [],
+                                      log_level=log_level)
             self.lstack.insert(self.autoconfiglayer, below_of=self.icnlayer)
+
+            if self._routing:
+                self.rib: TreeRoutingInformationBase = TreeRoutingInformationBase()
+                self.autoconfiglayer._rib = self.rib
+                self.routinglayer = BasicRoutingLayer(linklayer=self.linklayer,
+                                                      rib=self.rib,
+                                                      fib=self.fib,
+                                                      bcaddrs=[('127.255.255.255', x)
+                                                               for x in range(9000, 9003) if x != port],
+                                                      log_level=log_level)
+                self.lstack.insert(self.routinglayer, below_of=self.autoconfiglayer)
 
         self.icnlayer.cs = self.cs
         self.icnlayer.fib = self.fib

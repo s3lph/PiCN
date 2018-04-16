@@ -14,6 +14,7 @@ interpreted as described in [IETF RFC 2119][rfc2119].
 |:-----------|:---------|
 | 2018-04-12 | First version of this document. |
 | 2018-04-13 | Added hop distance information to routes. |
+| 2018-04-13 | Clarified that hop distance is optional. |
 
 ## Features
 
@@ -141,7 +142,7 @@ SERVICE LISTS is defined by the ABNF rule SERVICELIST.
     NAME         = [ "/" NAMECOMP ]
     GLOBALPREFIX = "pg:" NAME
     LOCALPREFIX  = "pl:" NAME
-    HOPS         = DIGIT [ DIGIT ]
+    HOPS         = "-1" / DIGIT [ DIGIT ] ; -1 represents "no known distance information"
     ROUTE        = "r:" HOPS ":" NAME
     FORWARDER    = FACE NEWLINE [ GLOBALPREFIX / LOCALPREFIX / ROUTE NEWLINE ]
     SERVICELIST  = [ NAME NEWLINE ]
@@ -226,7 +227,8 @@ Network Byte Order.  Thus, this element has a constant length of 2 bytes.
 
 This element describes a prefix routed by the advertised forwarder.  It MUST contain
 exactly ONE Name element, as defined in the [NDN TLV][ndntlv] format specification,
-and exactly ONE Distance element.
+and SHOULD conteain exactly ONE Distance element, if such distance information is
+known.
 
 #### LocalPrefix (TLV-TYPE 134)
 
@@ -255,7 +257,7 @@ specification.
 This element describes the timeout (in seconds) for a service registration.  The
 value is represented as a variable-length integer in Network Byte Order.
 
-#### RegistrationTimeout (TLV-TYPE 138)
+#### Distance (TLV-TYPE 138)
 
 This element describes the distance (in hops) for a route.  The value is represented
 as a variable-length integer in Network Byte Order.

@@ -25,11 +25,10 @@ class ForwardingInformationBaseMemoryPrefix(BaseForwardingInformationBase):
             components = components[:complen - 1]
         return None
 
-    def add_fib_entry(self, name: Name, faceid: int, static: bool=False):
-        fib_entry = ForwardingInformationBaseEntry(name, faceid, static)
+    def add_fib_entry(self, name: Name, faceid: int, static: bool=False, distance: int = None):
+        fib_entry = ForwardingInformationBaseEntry(name, faceid, static, distance)
         if fib_entry not in self._container:
             self._container.append(fib_entry)
-
 
     def remove_fib_entry(self, name: Name):
         for fib_entry in self._container:

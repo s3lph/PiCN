@@ -57,7 +57,7 @@ class ICNDataRepository(object):
         if autoconfig:
             self.autoconfiglayer = AutoconfigRepoLayer(name=prefix.string_components[-1],
                                                        addr='127.0.0.1', port=port,
-                                                       bcaddr='127.255.255.255', bcport=6363,
+                                                       bcaddr='127.255.255.255', bcport=9002,
                                                        linklayer=self.linklayer, repo=self.repo, log_level=log_level)
             self.lstack.insert(self.autoconfiglayer, below_of=self.chunklayer)
 

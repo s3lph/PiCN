@@ -4,6 +4,7 @@ import socket
 from typing import List, Tuple
 from datetime import datetime, timedelta
 
+from PiCN.Layers.RoutingLayer.RoutingInformationBase.BaseRoutingInformationBase import BaseRoutingInformationBase
 from PiCN.Processes import LayerProcess
 from PiCN.Layers.LinkLayer import UDP4LinkLayer
 from PiCN.Packets import Packet, Interest, Content, Nack, NackReason, Name
@@ -19,6 +20,7 @@ _AUTOCONFIG_SERVICE_REGISTRATION_PREFIX: Name = Name('/autoconfig/service')
 class AutoconfigServerLayer(LayerProcess):
 
     def __init__(self, linklayer: UDP4LinkLayer = None, fib: BaseForwardingInformationBase = None,
+                 rib: BaseRoutingInformationBase = None,
                  address: str = '127.0.0.1', bcaddr: str = '255.255.255.255',
                  registration_prefixes: List[Tuple[Name, bool]] = list(), log_level: int = 255):
         """
@@ -37,6 +39,7 @@ class AutoconfigServerLayer(LayerProcess):
         self._known_services: List[Tuple[Name, Tuple[str, int], datetime]] = []
         self._service_registration_prefixes: List[Tuple[Name, bool]] = registration_prefixes
         self._service_registration_timeout = timedelta(hours=1)
+        self._rib: BaseRoutingInformationBase = rib
 
         # Enable broadcasting on the link layer's socket.
         if self._linklayer is not None:
@@ -74,9 +77,11 @@ class AutoconfigServerLayer(LayerProcess):
         self.logger.info('Autoconfig information requested')
         port: int = self._linklayer.get_port()
         content: str = f'udp4://{self._announce_addr}:{port}\n'
+        print(self._fib.container)
         for entry in self._fib.container:
+            print(f'Adding FIB entry {entry.name.to_string()} to forwarder information')
             entry: ForwardingInformationBaseEntry = entry
-            content += f'r:1:{entry.name.to_string()}\n'
+            content += f'r:{entry.distance if entry.distance is not None else -1}:{entry.name.to_string()}\n'
         for prefix, local in self._service_registration_prefixes:
             if local:
                 content += f'pl:{prefix.to_string()}\n'
@@ -125,6 +130,7 @@ class AutoconfigServerLayer(LayerProcess):
             nack: Nack = Nack(interest.name, NackReason.NO_ROUTE)
             nack.interest = interest
             return nack
+        timeout = datetime.now() + self._service_registration_timeout
         for i in range(len(self._known_services)):
             service, addr, _ = self._known_services[i]
             if service == srvname:
@@ -133,12 +139,16 @@ class AutoconfigServerLayer(LayerProcess):
                     nack.interest = interest
                     return nack
                 else:
-                    self._known_services[i] = (service, addr, datetime.now() + self._service_registration_timeout)
+                    self._known_services[i] = (service, addr, timeout)
                     ack: Content = Content(interest.name,
                                            str(int(self._service_registration_timeout.total_seconds())) + '\n')
                     return ack
         srvfid: int = self._linklayer.get_or_create_fid(srvaddr, static=True)
         self._fib.add_fib_entry(srvname, srvfid, static=True)
-        self._known_services.append((srvname, srvaddr, datetime.now() + self._service_registration_timeout))
+        if self._rib is not None:
+            self._rib.insert(srvname, srvfid, 1, timeout)
+            self.logger.info(f'Inserted RIB entry {srvname.to_string()} via {srvfid} d=1')
+            self.logger.info(self._rib)
+        self._known_services.append((srvname, srvaddr, timeout))
         ack: Content = Content(interest.name, str(int(self._service_registration_timeout.total_seconds())) + '\n')
         return ack

@@ -38,7 +38,7 @@ class Fetch(object):
         self.autoconfig = autoconfig
         if autoconfig:
             self.autoconfiglayer: AutoconfigClientLayer = AutoconfigClientLayer(self.linklayer,
-                                                                                bcaddr='127.255.255.255', bcport=6363)
+                                                                                bcaddr=ip, bcport=port)
             self.lstack.insert(self.autoconfiglayer, on_top_of=self.packetencodinglayer)
 
         # setup communication
@@ -54,7 +54,9 @@ class Fetch(object):
         """
         # create interest
         interest: Interest = Interest(name)
+        print('Sending interest')
         if self.autoconfig:
+            print('Autoconfig')
             self.lstack.queue_from_higher.put([None, interest])
         else:
             self.lstack.queue_from_higher.put([self.fid, interest])
