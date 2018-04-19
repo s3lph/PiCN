@@ -77,9 +77,8 @@ class AutoconfigServerLayer(LayerProcess):
         self.logger.info('Autoconfig information requested')
         port: int = self._linklayer.get_port()
         content: str = f'udp4://{self._announce_addr}:{port}\n'
-        print(self._fib.container)
         for entry in self._fib.container:
-            print(f'Adding FIB entry {entry.name.to_string()} to forwarder information')
+            self.logger.info(f'Adding FIB entry {entry.name.to_string()} to forwarder information')
             entry: ForwardingInformationBaseEntry = entry
             content += f'r:{entry.distance if entry.distance is not None else -1}:{entry.name.to_string()}\n'
         for prefix, local in self._service_registration_prefixes:

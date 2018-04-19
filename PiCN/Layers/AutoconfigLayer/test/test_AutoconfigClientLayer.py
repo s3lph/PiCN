@@ -110,7 +110,7 @@ class test_AutoconfigClientLayer(unittest.TestCase):
         self.assertIn([bcfid, solictiation], tolower)
 
         # Create a forwarder advertisement and pass it to the autoconfig layer
-        advertisement = Content(Name('/autoconfig/forwarders'), 'udp4://127.13.37.42:1234\nr:/foo\n')
+        advertisement = Content(Name('/autoconfig/forwarders'), 'udp4://127.13.37.42:1234\nr:-1:/foo\n')
         self.queue_from_lower.put([bcfid, advertisement])
         # Catch all data the autoconfig layer sends downwards for 3 seconds
         deadline = datetime.utcnow() + timedelta(seconds=waittime)

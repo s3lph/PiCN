@@ -75,7 +75,7 @@ class test_AutoconfigServerLayer(unittest.TestCase):
         lines: List[str] = [line for line in packet.content.split('\n') if len(line) > 0]
         self.assertEqual(4, len(lines))
         self.assertEqual('udp4://127.0.1.1:1337', lines[0])
-        self.assertIn('r:/global', lines)
+        self.assertIn('r:-1:/global', lines)
         self.assertIn('pg:/test/repos', lines)
         self.assertIn('pl:/home', lines)
 

@@ -54,9 +54,7 @@ class Fetch(object):
         """
         # create interest
         interest: Interest = Interest(name)
-        print('Sending interest')
         if self.autoconfig:
-            print('Autoconfig')
             self.lstack.queue_from_higher.put([None, interest])
         else:
             self.lstack.queue_from_higher.put([self.fid, interest])

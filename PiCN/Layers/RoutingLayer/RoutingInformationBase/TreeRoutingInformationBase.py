@@ -1,7 +1,6 @@
 
 from typing import List, Tuple, Dict
 
-import multiprocessing
 from multiprocessing.managers import BaseManager
 from datetime import datetime
 
@@ -80,7 +79,9 @@ class _RIBTreeNode(object):
                 subfids.add(c[1])
             # If there is only one face in the results, reduce the entries to a single prefix entry with the own name
             if len(subfids) == 1 and len(ch_res) > 1:
-                result.append((nclist,) + subfids.pop())
+                sf = subfids.pop()
+                dist = min([c[2] for c in ch_res if c[1] == sf])
+                result.append((nclist, sf, dist))
             else:
                 # If there is more than one face in the results, don't collapse the entries to a prefix entry
                 for c in ch_res:
